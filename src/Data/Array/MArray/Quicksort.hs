@@ -36,7 +36,10 @@ introsort' maxdepth altsort a = getBounds a >>= \(mn, mx) -> srt maxdepth mn mx
                         altsort a (i + 1) mx
                     else do
                         let depthleft' = depthleft - 1
-                        -- sort the smaller part first
+                        -- Sort the smaller part first. Hopefully, tail
+                        -- recursion will catch on the larger part and so we'll
+                        -- have guaranteed that even in the worst case, we'll
+                        -- have at most (log n) calls on the stack.
                         if i < d then do
                             srt depthleft' mn (i - 1)
                             srt depthleft' (i + 1) mx
@@ -81,7 +84,7 @@ median3 a b c
     | a > b     = sel a b
     | otherwise = sel b a
   where
-    sel l s
-        | c > l = l
-        | c < s = s
-        | otherwise = c
+    sel l s = case compare c l of
+        GT -> l
+        LT -> s
+        _  -> c
