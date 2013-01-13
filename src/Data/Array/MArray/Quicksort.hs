@@ -1,5 +1,8 @@
-module Data.Array.MArray.Quicksort (
-    qsort
+module Data.Array.MArray.Quicksort
+    ( qsort
+    -- internal
+    , insertsort
+    , introsort'
     ) where
 
 import Control.Monad
@@ -7,24 +10,28 @@ import Data.Array.IO
 
 --import Debug.Trace
 
+insertsortLimit :: Int
+insertsortLimit = 32
+
 {-# INLINE qsort #-}
 qsort :: (MArray a e m, Ord e, Show e) => a Int e -> m ()
-qsort = introsort' ( -1 ) undefined
+qsort = introsort' (return ()) ( -1 ) undefined
 
 {-# INLINE introsort' #-}
-introsort' :: (MArray a e m, Ord e, Show e) => Int -> (a Int e -> Int -> Int -> m ()) -> a Int e -> m ()
-introsort' maxdepth altsort a = getBounds a >>= \(mn, mx) -> srt maxdepth mn mx
+introsort' :: (MArray a e m, Ord e, Show e) => m () -> Int -> (a Int e -> Int -> Int -> m ()) -> a Int e -> m ()
+introsort' cmpaction maxdepth altsort a = getBounds a >>= \(mn, mx) -> srt maxdepth mn mx
   where
     trc = flip const
     trcShow = flip const
     srt depthleft mn mx
-        | (mn + 1 >= mx)  = return ()
+        | (mn + insertsortLimit > mx) = insertsort cmpaction a mn mx
         | otherwise = trcShow (mn,mx) $ do
                 -- Select a pivot - median of 3:
                 pL <- readArray a mn
                 pR <- readArray a mx
                 let d = (mn + mx) `div` 2
                 pD <- readArray a d
+                cmpaction
                 let (_, pidx) = median3 (pR, mx) (pD, d) (pL, mn)
 
                 p <- swap d mn
@@ -68,12 +75,14 @@ introsort' maxdepth altsort a = getBounds a >>= \(mn, mx) -> srt maxdepth mn mx
                 moveRight i | i > j = return i
                             | otherwise = do
                     v <- readArray a i
+                    cmpaction
                     if v >= p
                         then return i
                         else moveRight (i + 1)
                 moveLeft j | i > j = return j
                            | otherwise = do
                     v <- readArray a j
+                    cmpaction
                     if v <= p
                         then return j
                         else moveLeft (j - 1)
@@ -88,3 +97,24 @@ median3 a b c
         GT -> l
         LT -> s
         _  -> c
+
+
+{-# INLINE insertsort #-}
+insertsort :: (MArray a e m, Ord e, Show e) => m () -> a Int e -> Int -> Int -> m ()
+insertsort cmpaction a mn mx = srt (mn + 1)
+  where
+    srt i = when (i <= mx) $ do
+                v <- readArray a i
+                j <- hole v i
+                when (i /= j) (writeArray a j v)
+                srt (i + 1)
+    hole v = hole'
+      where
+        hole' i | i == mn     = return i
+                | otherwise   = do
+                    let i' = i - 1
+                    u <- readArray a i'
+                    cmpaction
+                    if v < u
+                      then writeArray a i u >> hole' i'
+                      else return i
