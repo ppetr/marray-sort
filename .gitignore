@@ -1,0 +1,12 @@
+dist
+cabal-dev
+*.o
+*.hi
+*.chi
+*.chs.h
+*.swp
+*.swo
+# testing data
+test*
+# some local docs
+/*.pdf
