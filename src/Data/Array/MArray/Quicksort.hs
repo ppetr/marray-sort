@@ -10,24 +10,20 @@ module Data.Array.MArray.Quicksort
 import Control.Monad
 import Data.Array.IO
 
---import Debug.Trace
-
 insertsortLimit :: Int
 insertsortLimit = 32
 
 {-# INLINE qsort #-}
-qsort :: (MArray a e m, Ord e, Show e) => a Int e -> m ()
+qsort :: (MArray a e m, Ord e) => a Int e -> m ()
 qsort = introsort' (return ()) ( -1 ) undefined
 
 {-# INLINE introsort' #-}
-introsort' :: (MArray a e m, Ord e, Show e) => m () -> Int -> (a Int e -> Int -> Int -> m ()) -> a Int e -> m ()
+introsort' :: (MArray a e m, Ord e) => m () -> Int -> (a Int e -> Int -> Int -> m ()) -> a Int e -> m ()
 introsort' cmpaction maxdepth altsort a = getBounds a >>= uncurry (srt maxdepth)
   where
-    trc = flip const
-    trcShow = flip const
     srt depthleft mn mx
         | mn + insertsortLimit > mx  = insertsort cmpaction a mn mx
-        | otherwise = trcShow (mn,mx) $ do
+        | otherwise = do
                 -- Select a pivot - median of 3:
                 pL <- readArray a mn
                 pR <- readArray a mx
@@ -38,9 +34,10 @@ introsort' cmpaction maxdepth altsort a = getBounds a >>= uncurry (srt maxdepth)
 
                 p <- swap d mn
                 i <- split p (mn + 1) mx
-                trcShow (i, p) $ swap i mn
+                swap i mn
+
                 if depthleft == 0
-                    then trc ("Maximum depth reached for " ++ show (mn,mx)) $ do
+                    then do
                         altsort a mn (i - 1)
                         altsort a (i + 1) mx
                     else do
@@ -102,7 +99,7 @@ median3 a b c
 
 
 {-# INLINE insertsort #-}
-insertsort :: (MArray a e m, Ord e, Show e) => m () -> a Int e -> Int -> Int -> m ()
+insertsort :: (MArray a e m, Ord e) => m () -> a Int e -> Int -> Int -> m ()
 insertsort cmpaction a mn mx = srt (mn + 1)
   where
     srt i = when (i <= mx) $ do
