@@ -21,12 +21,12 @@ qsort = introsort' (return ()) ( -1 ) undefined
 
 {-# INLINE introsort' #-}
 introsort' :: (MArray a e m, Ord e, Show e) => m () -> Int -> (a Int e -> Int -> Int -> m ()) -> a Int e -> m ()
-introsort' cmpaction maxdepth altsort a = getBounds a >>= \(mn, mx) -> srt maxdepth mn mx
+introsort' cmpaction maxdepth altsort a = getBounds a >>= uncurry (srt maxdepth)
   where
     trc = flip const
     trcShow = flip const
     srt depthleft mn mx
-        | (mn + insertsortLimit > mx) = insertsort cmpaction a mn mx
+        | mn + insertsortLimit > mx  = insertsort cmpaction a mn mx
         | otherwise = trcShow (mn,mx) $ do
                 -- Select a pivot - median of 3:
                 pL <- readArray a mn
