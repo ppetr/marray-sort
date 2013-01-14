@@ -92,10 +92,9 @@ median3 a b c
     | a > b     = sel a b
     | otherwise = sel b a
   where
-    sel l s = case compare c l of
-        GT -> l
-        LT -> s
-        _  -> c
+    sel l s | c > l     = l
+            | c < s     = s
+            | otherwise = c
 
 
 {-# INLINE insertsort #-}
