@@ -1,4 +1,6 @@
 {-# OPTIONS_GHC -O2 #-}
+-- Created by refactoring Bart Massey's heapsort package: http://hackage.haskell.org/package/heapsort
+--
 -- Copyright  2010 Bart Massey
 -- Heapsort in Haskell
 --
@@ -20,7 +22,7 @@ import Data.Array.MArray
 -- Internally, heap indices are transformed
 -- to be zero-based.
 
-data Dirn = L | R | N
+data NodeType = Inner | Leaf | Edge
 
 {-# INLINE heapsort #-}
 heapsort :: (Integral i, Ix i, Ord e, MArray a e m) => a i e -> i -> i -> m ()
@@ -32,18 +34,16 @@ heapsort a mn mx = do
     getN = mx - mn + 1
 
     {-# INLINE left #-}
-    left n i = 2 * i + 1  
+    left i = 2 * i + 1  
 
     {-# INLINE right #-}
-    right n i = 2 * i + 2
+    right i = 2 * i + 2
 
-    {-# INLINE isLeaf #-}
-    isLeaf n i = left n i >= n
-
-    -- XXX Returns True when isLeaf is, so
-    -- use with caution.
-    {-# INLINE isEdge #-}
-    isEdge n i = right n i >= n
+    {-# INLINE nodeType #-}
+    nodeType n i = case compare (right i) n of
+        GT  -> Leaf
+        EQ  -> Edge
+        LT  -> Inner
 
     {-# INLINE atIndex #-}
     atIndex i = readArray a (i + mn)
@@ -56,48 +56,44 @@ heapsort a mn mx = do
       writeArray a (ix2 + mn) v1
 
     {-# INLINE downHeap #-}
-    downHeap n i = do
-      let il = left n i
-      let ir = right n i
-      c <- atIndex i
-      let exchWith
-            | isLeaf n i = return N
-            | isEdge n i = do
+    downHeap n i = dh i
+      where
+        dh i = case nodeType n i of
+            Leaf -> stop
+            Edge -> do
+                c <- atIndex i
                 l <- atIndex il
-                return (if c >= l then N else L)
-            | otherwise = do
+                if c >= l then stop else stepL
+            Inner -> do
+                c <- atIndex i
                 l <- atIndex il
                 r <- atIndex ir
-                return (if c >= l && c >= r  
-                          then N
-                          else if l >= r 
-                            then L
-                            else R)
-      x <- exchWith
-      case x of
-        L -> do
-          exch i il
-          downHeap n il
-        R -> do
-          exch i ir
-          downHeap n ir
-        N -> return ()
+                if c >= l && c >= r  
+                  then stop
+                  else if l >= r 
+                    then stepL
+                    else stepR
+          where
+            stop = return ()
+            stepL = exch i il >> dh il
+            stepR = exch i ir >> dh ir
+            il = left i
+            ir = right i
 
     {-# INLINE heapify #-}
-    heapify = do
-      let n = getN
-      let heapifyRoots i
-            | isLeaf n i = 
-              return ()
-            | isEdge n i = do
-                heapifyRoots (left n i)
+    heapify = heapifyRoots 0
+      where
+          n = getN
+          heapifyRoots i = case nodeType n i of
+            Leaf -> return ()
+            Edge -> do
+                heapifyRoots (left i)
                 downHeap n i
-            | otherwise = do
-                heapifyRoots (left n i)
-                heapifyRoots (right n i)
+            Inner -> do
+                heapifyRoots (left i)
+                heapifyRoots (right i)
                 downHeap n i
-      heapifyRoots 0
-        
+
 
     {-# INLINE extract #-}
     extract = extractRoot (getN - 1)
