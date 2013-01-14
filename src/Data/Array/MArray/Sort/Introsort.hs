@@ -1,28 +1,44 @@
 {-# OPTIONS_GHC -O2 #-}
 {- -O2 provides small, but noticable benefit for qsort. -}
-module Data.Array.MArray.Quicksort
+module Data.Array.MArray.Sort.Introsort
     ( qsort
+    , introsort
     -- internal
-    , insertsort
     , introsort'
     ) where
 
 import Control.Monad
 import Data.Array.IO
+import Data.Array.MArray.Sort.Heapsort
+import Data.Array.MArray.Sort.Insertsort
 
 insertsortLimit :: Int
 insertsortLimit = 32
 
+depthCoeficient :: Double
+depthCoeficient = 1.5 / log 2
+
 {-# INLINE qsort #-}
 qsort :: (MArray a e m, Ord e) => a Int e -> m ()
-qsort = introsort' (return ()) ( -1 ) undefined
+qsort = introsort' (return ()) ( -1 )
+
+{-# INLINE maxQSortDepth #-}
+maxQSortDepth :: (MArray a e m) => a Int e -> m Int
+maxQSortDepth arr = do
+    (mn, mx) <- getBounds arr
+    return $ ceiling (depthCoeficient * log (fromIntegral $ mx - mn + 1))
+
+{-# INLINE introsort #-}
+introsort :: (MArray a e m, Ord e) => a Int e -> m ()
+introsort arr = maxQSortDepth arr >>= \d -> introsort' (return ()) d arr
 
 {-# INLINE introsort' #-}
-introsort' :: (MArray a e m, Ord e) => m () -> Int -> (a Int e -> Int -> Int -> m ()) -> a Int e -> m ()
-introsort' cmpaction maxdepth altsort a = getBounds a >>= uncurry (srt maxdepth)
+introsort' :: (MArray a e m, Ord e) => m () -> Int -> a Int e -> m ()
+introsort' cmpaction maxdepth a = getBounds a >>= uncurry (srt maxdepth)
   where
     srt depthleft mn mx
-        | mn + insertsortLimit > mx  = insertsort cmpaction a mn mx
+        | depthleft == 0             = heapsort a mn mx
+        | mn + insertsortLimit > mx  = insertsort' cmpaction a mn mx
         | otherwise = do
                 -- Select a pivot - median of 3:
                 pL <- readArray a mn
@@ -36,22 +52,17 @@ introsort' cmpaction maxdepth altsort a = getBounds a >>= uncurry (srt maxdepth)
                 i <- split p (mn + 1) mx
                 swap i mn
 
-                if depthleft == 0
-                    then do
-                        altsort a mn (i - 1)
-                        altsort a (i + 1) mx
-                    else do
-                        let depthleft' = depthleft - 1
-                        -- Sort the smaller part first. Hopefully, tail
-                        -- recursion will catch on the larger part and so we'll
-                        -- have guaranteed that even in the worst case, we'll
-                        -- have at most (log n) calls on the stack.
-                        if i < d then do
-                            srt depthleft' mn (i - 1)
-                            srt depthleft' (i + 1) mx
-                         else do
-                            srt depthleft' (i + 1) mx
-                            srt depthleft' mn (i - 1)
+                let depthleft' = depthleft - 1
+                -- Sort the smaller part first. Hopefully, tail
+                -- recursion will catch on the larger part and so we'll
+                -- have guaranteed that even in the worst case, we'll
+                -- have at most (log n) calls on the stack.
+                if i < d then do
+                    srt depthleft' mn (i - 1)
+                    srt depthleft' (i + 1) mx
+                 else do
+                    srt depthleft' (i + 1) mx
+                    srt depthleft' mn (i - 1)
       where
         {-# INLINE swap #-}
         swap i j = do
@@ -95,24 +106,3 @@ median3 a b c
     sel l s | c > l     = l
             | c < s     = s
             | otherwise = c
-
-
-{-# INLINE insertsort #-}
-insertsort :: (MArray a e m, Ord e) => m () -> a Int e -> Int -> Int -> m ()
-insertsort cmpaction a mn mx = srt (mn + 1)
-  where
-    srt i = when (i <= mx) $ do
-                v <- readArray a i
-                j <- hole v i
-                when (i /= j) (writeArray a j v)
-                srt (i + 1)
-    hole v = hole'
-      where
-        hole' i | i == mn     = return i
-                | otherwise   = do
-                    let i' = i - 1
-                    u <- readArray a i'
-                    cmpaction
-                    if v < u
-                      then writeArray a i u >> hole' i'
-                      else return i
