@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -O2 #-}
+{- -O2 provides small, but noticable benefit for qsort. -}
 module Data.Array.MArray.Quicksort
     ( qsort
     -- internal
