@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -O2 #-}
 module Data.Array.MArray.Sort.Insertsort
     ( insertsort
     , insertsort'

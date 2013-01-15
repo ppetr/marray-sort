@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -O2 #-}
 -- Created by refactoring Bart Massey's heapsort package: http://hackage.haskell.org/package/heapsort
 --
 -- Copyright  2010 Bart Massey
@@ -33,9 +32,6 @@ heapsort a mn mx = do
   where
     getN = mx - mn + 1
 
-    {-# INLINE left #-}
-    left i = 2 * i + 1  
-
     {-# INLINE right #-}
     right i = 2 * i + 2
 
@@ -49,21 +45,24 @@ heapsort a mn mx = do
     atIndex i = readArray a (i + mn)
 
     {-# INLINE exch #-}
-    exch ix1 ix2 = do
-      v1 <- readArray a (ix1 + mn)
-      v2 <- readArray a (ix2 + mn)
-      writeArray a (ix1 + mn) v2
-      writeArray a (ix2 + mn) v1
+    exch ix1 ix2 | ix1 == ix2   = return ()
+                 | otherwise    = do
+      let i = ix1 + mn
+          j = ix2 + mn
+      v1 <- readArray a i
+      v2 <- readArray a j
+      writeArray a j v1
+      writeArray a i v2
 
     {-# INLINE downHeap #-}
-    downHeap n i = dh i
+    downHeap n = dh
       where
         dh i = case nodeType n i of
             Leaf -> stop
             Edge -> do
                 c <- atIndex i
                 l <- atIndex il
-                if c >= l then stop else stepL
+                if c < l then exch i il else stop
             Inner -> do
                 c <- atIndex i
                 l <- atIndex il
@@ -71,28 +70,19 @@ heapsort a mn mx = do
                 if c >= l && c >= r  
                   then stop
                   else if l >= r 
-                    then stepL
-                    else stepR
+                    then exch i il >> dh il
+                    else exch i ir >> dh ir
           where
             stop = return ()
-            stepL = exch i il >> dh il
-            stepR = exch i ir >> dh ir
-            il = left i
             ir = right i
+            il = ir - 1
 
     {-# INLINE heapify #-}
-    heapify = heapifyRoots 0
+    heapify = heapifyRoots (n - 1) -- optimize: use 2^k such that k is maximal that 2^k < n
       where
-          n = getN
-          heapifyRoots i = case nodeType n i of
-            Leaf -> return ()
-            Edge -> do
-                heapifyRoots (left i)
-                downHeap n i
-            Inner -> do
-                heapifyRoots (left i)
-                heapifyRoots (right i)
-                downHeap n i
+        n = getN
+        heapifyRoots i | i < 0  = return ()
+                       | otherwise = downHeap n i >> heapifyRoots (i - 1)
 
 
     {-# INLINE extract #-}
@@ -102,3 +92,4 @@ heapsort a mn mx = do
                       | otherwise = do
             exch k 0
             downHeap k 0
+            extractRoot (k - 1)

@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -O2 #-}
 {- -O2 provides small, but noticable benefit for qsort. -}
 module Data.Array.MArray.Sort.Introsort
     ( qsort
@@ -16,7 +15,7 @@ insertsortLimit :: Int
 insertsortLimit = 32
 
 depthCoeficient :: Double
-depthCoeficient = 1.5 / log 2
+depthCoeficient = 2 / log 2
 
 {-# INLINE qsort #-}
 qsort :: (MArray a e m, Ord e) => a Int e -> m ()
