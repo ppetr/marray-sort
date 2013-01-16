@@ -36,7 +36,7 @@ introsort' :: (MArray a e m, Ord e) => m () -> Int -> a Int e -> m ()
 introsort' cmpaction maxdepth a = getBounds a >>= uncurry (srt maxdepth)
   where
     srt depthleft mn mx
-        | depthleft == 0             = heapsort a mn mx
+        | depthleft == 0             = heapsort' a mn mx
         | mn + insertsortLimit > mx  = insertsort' cmpaction a mn mx
         | otherwise = do
                 -- Select a pivot - median of 3:
